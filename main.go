@@ -26,6 +26,22 @@ func deploy(c *Config) {
 	}
 }
 
+func deleteLambda(c *Config) {
+	lambdaDeleter := LambdaDeleter{
+		Config: c,
+	}
+	if err := lambdaDeleter.delete(); err != nil {
+		log.Fatal("Error deleting lambda function:", err)
+	}
+
+	iamDeleter := IAMDeleter{
+		Config: c,
+	}
+	if err := iamDeleter.delete(); err != nil {
+		log.Fatal("Error deleteing iam role:", err)
+	}
+}
+
 func main() {
 	app := cli.NewApp()
 	app.Name = "gappa"
@@ -46,6 +62,17 @@ func main() {
 					log.Fatal("Failed to read config: ", err)
 				}
 				deploy(config)
+			},
+		},
+		{
+			Name:  "delete",
+			Usage: "delete lambda function",
+			Action: func(c *cli.Context) {
+				config, err := extractConfig("kappa.yml")
+				if err != nil {
+					log.Fatal("Failed to read config: ", err)
+				}
+				deleteLambda(config)
 			},
 		},
 	}

@@ -86,7 +86,7 @@ func (l *LambdaDeployer) deploy() error {
 		return nil
 	}
 
-	if _, err := svc.CreateFunction(&lambda.CreateFunctionInput{
+	params := &lambda.CreateFunctionInput{
 		Code: &lambda.FunctionCode{ // Required
 			ZipFile: packageBytes,
 		},
@@ -98,7 +98,26 @@ func (l *LambdaDeployer) deploy() error {
 		MemorySize:   aws.Int64(128),
 		Publish:      aws.Bool(true),
 		Timeout:      aws.Int64(3),
-	}); err != nil {
+	}
+
+	if l.Config.Lambda.VpcConfig != nil {
+		securityGroupIds := []*string{}
+		for _, sg := range l.Config.Lambda.VpcConfig.SecurityGroupIds {
+			securityGroupIds = append(securityGroupIds, aws.String(sg))
+		}
+
+		subnetIds := []*string{}
+		for _, sb := range l.Config.Lambda.VpcConfig.SubnetIds {
+			subnetIds = append(subnetIds, aws.String(sb))
+		}
+
+		params.VpcConfig = &lambda.VpcConfig{
+			SecurityGroupIds: securityGroupIds,
+			SubnetIds:        subnetIds,
+		}
+	}
+
+	if _, err := svc.CreateFunction(params); err != nil {
 		return err
 	}
 
@@ -145,5 +164,28 @@ func (l *LambdaDeployer) preparePackage() error {
 
 	l.File = out
 
+	return nil
+}
+
+type LambdaDeleter struct {
+	Config *Config
+}
+
+func (d *LambdaDeleter) delete() error {
+	svc := lambda.New(session.New(awsConfig))
+
+	if _, err := svc.DeleteFunction(&lambda.DeleteFunctionInput{
+		FunctionName: aws.String(d.Config.Name),
+	}); err != nil {
+		if reqerr, ok := err.(awserr.RequestFailure); ok {
+			if reqerr.Code() == "ResourceNotFoundException" {
+				log.Println("Lambda function not found")
+				return nil
+			}
+		}
+		return err
+	}
+
+	log.Println("Lambda function deleted")
 	return nil
 }

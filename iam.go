@@ -7,6 +7,7 @@ import (
 	"net/url"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/iam"
 )
@@ -135,6 +136,81 @@ func (i *IAMProvisioner) provisionRole() error {
 	}
 
 	log.Println("Role created")
+
+	return nil
+}
+
+type IAMDeleter struct {
+	Config *Config
+}
+
+func (d *IAMDeleter) delete() error {
+	if err := d.deleteRole(); err != nil {
+		return err
+	}
+
+	if err := d.deletePolicy(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *IAMDeleter) deleteRole() error {
+	svc := iam.New(session.New(awsConfig))
+
+	listAttachedRolePoliciesOut, err := svc.ListAttachedRolePolicies(&iam.ListAttachedRolePoliciesInput{RoleName: aws.String(d.Config.Name)})
+	if err != nil {
+		if reqerr, ok := err.(awserr.RequestFailure); ok {
+			if reqerr.Code() == "NoSuchEntity" {
+				log.Println("Role not found")
+				return nil
+			}
+		}
+		return err
+	}
+
+	for _, policy := range listAttachedRolePoliciesOut.AttachedPolicies {
+		svc.DetachRolePolicy(&iam.DetachRolePolicyInput{
+			PolicyArn: policy.PolicyArn,
+			RoleName:  aws.String(d.Config.Name),
+		})
+	}
+
+	if _, err := svc.DeleteRole(&iam.DeleteRoleInput{
+		RoleName: aws.String(d.Config.Name),
+	}); err != nil {
+		return err
+	}
+
+	log.Println("Role deleted")
+
+	return nil
+}
+
+func (d *IAMDeleter) deletePolicy() error {
+	svc := iam.New(session.New(awsConfig))
+
+	user := ""
+	if resp, err := svc.GetUser(&iam.GetUserInput{}); err == nil {
+		user = *resp.User.UserId
+	} else {
+		return err
+	}
+
+	policyArn := fmt.Sprintf("arn:aws:iam::%v:policy/gappa/%v", user, d.Config.Name)
+
+	if _, err := svc.DeletePolicy(&iam.DeletePolicyInput{PolicyArn: aws.String(policyArn)}); err != nil {
+		if reqerr, ok := err.(awserr.RequestFailure); ok {
+			if reqerr.Code() == "NoSuchEntity" {
+				log.Println("Policy not found")
+				return nil
+			}
+		}
+		return err
+	}
+
+	log.Println("Policy deleted")
 
 	return nil
 }

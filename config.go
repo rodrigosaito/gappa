@@ -48,6 +48,12 @@ type Lambda struct {
 	Runtime     string
 	MemorySize  string
 	Timeout     int
+	VpcConfig   *VpcConfig `yaml:"vpc_config"`
+}
+
+type VpcConfig struct {
+	SecurityGroupIds []string
+	SubnetIds        []string
 }
 
 func extractConfig(filename string) (*Config, error) {
