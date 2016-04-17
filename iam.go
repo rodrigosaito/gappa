@@ -18,14 +18,20 @@ type IAMProvisioner struct {
 }
 
 func (i *IAMProvisioner) provision() error {
-	i.provisionPolicy()
-	i.provisionRole()
+	if err := i.provisionPolicy(); err != nil {
+		return err
+	}
+	if err := i.provisionRole(); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func (i *IAMProvisioner) provisionPolicy() error {
-	b, _ := json.Marshal(i.Config.Environments[0].Policy)
+	i.Config.CurrentEnv().Policy.Version = "2012-10-17"
+
+	b, _ := json.Marshal(i.Config.CurrentEnv().Policy)
 
 	svc := iam.New(session.New(awsConfig))
 
@@ -123,7 +129,7 @@ func (i *IAMProvisioner) provisionRole() error {
 
 	if _, err := svc.AttachRolePolicy(&iam.AttachRolePolicyInput{
 		PolicyArn: i.Policy.Arn,              // Required
-		RoleName:  aws.String("some_lambda"), // Required
+		RoleName:  aws.String(i.Config.Name), // Required
 	}); err != nil {
 		return err
 	}

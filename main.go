@@ -41,7 +41,11 @@ func main() {
 			Name:  "deploy",
 			Usage: "deploy lambda function",
 			Action: func(c *cli.Context) {
-				deploy(extractConfig(c))
+				config, err := extractConfig("kappa.yml")
+				if err != nil {
+					log.Fatal("Failed to read config: ", err)
+				}
+				deploy(config)
 			},
 		},
 	}

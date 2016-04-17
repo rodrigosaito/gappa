@@ -1,11 +1,28 @@
 package main
 
-import "github.com/codegangsta/cli"
+import (
+	"io/ioutil"
+
+	"gopkg.in/yaml.v2"
+)
 
 type Config struct {
 	Name         string
-	Environments []Environment
+	Environments map[string]Environment
 	Lambda       *Lambda
+}
+
+func (c *Config) CurrentEnv() Environment {
+	return c.Environments["prod"]
+}
+
+func (c *Config) String() string {
+	d, err := yaml.Marshal(c)
+	if err != nil {
+		return "Config"
+	}
+
+	return string(d)
 }
 
 type Environment struct {
@@ -20,9 +37,9 @@ type Policy struct {
 }
 
 type PolicyStatement struct {
-	Effect   string
-	Resource string
-	Action   []string
+	Effect   string   `yaml:"Effect"`
+	Resource string   `yaml:"Resource"`
+	Action   []string `yaml:"Action"`
 }
 
 type Lambda struct {
@@ -33,27 +50,17 @@ type Lambda struct {
 	Timeout     int
 }
 
-func extractConfig(c *cli.Context) *Config {
-	// TODO read file
-	return &Config{
-		Name: "some_lambda",
-		Environments: []Environment{
-			Environment{
-				Profile: "saito",
-				Region:  "us-east-1",
-				Policy: &Policy{
-					Version: "2012-10-17",
-					Statements: []PolicyStatement{
-						PolicyStatement{
-							Effect:   "Allow",
-							Resource: "*",
-							Action: []string{
-								"logs:*",
-							},
-						},
-					},
-				},
-			},
-		},
+func extractConfig(filename string) (*Config, error) {
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
 	}
+
+	config := &Config{}
+
+	if err := yaml.Unmarshal(content, config); err != nil {
+		return nil, err
+	}
+
+	return config, nil
 }
