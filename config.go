@@ -9,8 +9,9 @@ type Config struct {
 }
 
 type Environment struct {
-	Region string
-	Policy *Policy
+	Region  string
+	Profile string
+	Policy  *Policy
 }
 
 type Policy struct {
@@ -38,7 +39,8 @@ func extractConfig(c *cli.Context) *Config {
 		Name: "some_lambda",
 		Environments: []Environment{
 			Environment{
-				Region: "us-east-1",
+				Profile: "saito",
+				Region:  "us-east-1",
 				Policy: &Policy{
 					Version: "2012-10-17",
 					Statements: []PolicyStatement{

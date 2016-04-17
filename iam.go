@@ -27,7 +27,7 @@ func (i *IAMProvisioner) provision() error {
 func (i *IAMProvisioner) provisionPolicy() error {
 	b, _ := json.Marshal(i.Config.Environments[0].Policy)
 
-	svc := iam.New(session.New(), &aws.Config{Region: aws.String("us-east-1")})
+	svc := iam.New(session.New(awsConfig))
 
 	user := ""
 	if resp, err := svc.GetUser(&iam.GetUserInput{}); err == nil {
@@ -85,7 +85,7 @@ func (i *IAMProvisioner) provisionPolicy() error {
 }
 
 func (i *IAMProvisioner) provisionRole() error {
-	svc := iam.New(session.New(), &aws.Config{Region: aws.String("us-east-1")})
+	svc := iam.New(session.New(awsConfig))
 
 	if getRoleOutput, err := svc.GetRole(&iam.GetRoleInput{
 		RoleName: aws.String(i.Config.Name),
@@ -109,14 +109,17 @@ func (i *IAMProvisioner) provisionRole() error {
 		]
 	}`
 
-	if _, err := svc.CreateRole(&iam.CreateRoleInput{
+	createRoleOutput, err := svc.CreateRole(&iam.CreateRoleInput{
 		RoleName:                 aws.String(i.Config.Name), // Required
 		AssumeRolePolicyDocument: aws.String(doc),           // Required
 		Path: aws.String("/gappa/"),
-	}); err != nil {
+	})
+	if err != nil {
 		log.Println(err.Error())
 		return err
 	}
+
+	i.Role = createRoleOutput.Role
 
 	if _, err := svc.AttachRolePolicy(&iam.AttachRolePolicyInput{
 		PolicyArn: i.Policy.Arn,              // Required

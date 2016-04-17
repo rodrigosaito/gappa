@@ -9,12 +9,38 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/lambda"
 )
+
+type LambdaRetryer struct {
+}
+
+func (r *LambdaRetryer) MaxRetries() int {
+	return 3
+}
+
+func (r *LambdaRetryer) RetryRules(req *request.Request) time.Duration {
+	return time.Duration(10) * time.Second
+}
+
+func (r *LambdaRetryer) ShouldRetry(req *request.Request) bool {
+	if req.Error != nil {
+		if reqerr, ok := req.Error.(awserr.RequestFailure); ok {
+			if reqerr.Code() == "InvalidParameterValueException" {
+				return true
+			}
+		}
+	}
+
+	return false
+}
 
 type LambdaDeployer struct {
 	Config *Config
@@ -38,7 +64,7 @@ func (l *LambdaDeployer) deploy() error {
 
 	codeHash64 := string(base64.StdEncoding.EncodeToString(h.Sum(nil)))
 
-	svc := lambda.New(session.New(), &aws.Config{Region: aws.String("us-east-1")})
+	svc := lambda.New(session.New(awsConfig), &aws.Config{Retryer: &LambdaRetryer{}})
 
 	if getFunctionOutput, err := svc.GetFunction(&lambda.GetFunctionInput{
 		FunctionName: aws.String(l.Config.Name),
